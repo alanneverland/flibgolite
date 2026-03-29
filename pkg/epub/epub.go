@@ -2,7 +2,7 @@ package epub
 
 import (
 	"strings"
-	"unicode"
+
 	"path"
 	"fmt"
 	"github.com/vinser/flibgolite/pkg/model"
@@ -33,30 +33,22 @@ func (ep *OPF) GetYear() string {
 }
 
 func (ep *OPF) GetPlot() string {
-	// Если в файле несколько тегов <dc:description>, склеиваем их через перенос строки, а не пробел
 	desc := strings.Join(ep.Metadata.Description, "\n")
 
-	// 1. Помогаем HTML-тегам: превращаем абзацы и брейки в переносы строк
 	desc = strings.ReplaceAll(desc, "<div>", "\n")
 	desc = strings.ReplaceAll(desc, "<p>", "\n")
 	desc = strings.ReplaceAll(desc, "<br>", "\n")
 	desc = strings.ReplaceAll(desc, "<br/>", "\n")
 
-	// 2. Вычищаем HTML. 
-	// Функция StripHTMLTags просто удалит теги <b>, <i>, <div> и т.д., 
-	// но НЕ тронет исходные переносы строк (\n) внутри обычного текста.
 	desc = parser.StripHTMLTags(desc)
 
-	// 3. Унифицируем переносы (Windows \r\n -> Unix \n) и превращаем табы в пробелы
 	desc = strings.ReplaceAll(desc, "\r", "")
 	desc = strings.ReplaceAll(desc, "\t", " ")
 
-	// 4. Аккуратно схлопываем только горизонтальные двойные пробелы
 	for strings.Contains(desc, "  ") {
 		desc = strings.ReplaceAll(desc, "  ", " ")
 	}
 
-	// 5. Защита от гигантских пустых дыр (ограничиваем максимальный отступ двумя переносами)
 	for strings.Contains(desc, "\n\n") {
 		desc = strings.ReplaceAll(desc, "\n\n", "\n")
 	}
@@ -73,7 +65,6 @@ func (ep *OPF) GetCover() string {
 			break
 		}
 	}
-	
 	
 	if coverHref == "" {
 		content := ""
@@ -92,7 +83,6 @@ func (ep *OPF) GetCover() string {
 			}
 		}
 	}
-	
 	
 		
 	if coverHref == "" {
@@ -118,9 +108,7 @@ func (ep *OPF) GetCover() string {
 	}
 	
 	if coverHref != "" {		
-		//fmt.Printf("DEBUG: opfPath=%s, href=%s\n", ep.opfPath, coverHref)
 		return path.Join(path.Dir(ep.opfPath), coverHref)
-		//return coverHref
 	}
 	
 	return ""
@@ -136,150 +124,138 @@ func (ep *OPF) GetLanguage() *model.Language {
 
 func (ep *OPF) GetAuthors() []*model.Author {
 	authors := make([]*model.Author, 0)
+	
+	lang := ep.Lang
+	if len(ep.Metadata.Language) > 0 {
+		lang = ep.Metadata.Language[0]
+	}
+	
 	for _, cr := range ep.Metadata.Creator {
 		a := &model.Author{}
+		
 		for _, meta := range ep.Metadata.Meta {
-			if meta.Refines != "#"+cr.ID {
-				continue
-			}
-
-			switch {
-			case meta.Property == "role" && meta.Text == "aut":
+			if meta.Refines == "#"+cr.ID && meta.Property == "role" && meta.Text == "aut" {
 				cr.Role = "aut"
-			case meta.Property == "file-as":
-				cr.FileAs = meta.Text
 			}
 		}
+		
 		if cr.Role == "aut" || cr.Role == "" || len(ep.Metadata.Creator) == 1 {
-			//parts := strings.Split(cr.Text, ",")
-			//name := parser.ParseFullName(parts[0])
 			name := parser.ParseFullName(cr.Text)
-			a.Name = strings.TrimSpace(strings.TrimSuffix(name.First+" "+name.Middle+" "+name.Last+" ("+name.Nick+")", " ()"))
-			if cr.FileAs != "" {
-				a.Sort = parser.AddCommaAfterLastName(parser.DelimitGluedName(cr.FileAs))
-			} else {
-				sortName := name.Last + ", " + name.First + " " + name.Middle + " (" + name.Nick + ")"
-				a.Sort = strings.TrimSuffix(strings.TrimSpace(strings.TrimSuffix(sortName, " ()")), ",")
+			
+			fullName := strings.TrimSpace(name.Last + " " + name.First + " " + name.Middle)
+			
+			for strings.Contains(fullName, "  ") {
+				fullName = strings.ReplaceAll(fullName, "  ", " ")
 			}
-			if len(a.Sort) > 0 {
-				a.Sort = strings.ToUpper(a.Sort)
+			
+			a.Name = strings.TrimSpace(fullName)
+			a.Sort = parser.GetSortSeriesOrAuthor(a.Name, lang)
+			
+			if len(a.Name) > 0 {
 				authors = append(authors, a)
 			}
 		}
 	}
+	
 	if len(authors) == 0 {
 		authors = append(authors,
 			&model.Author{
 				Name: "[author not specified]",
-				Sort: "[author not specified]",
+				Sort: "[AUTHOR NOT SPECIFIED]",
 			},
 		)
 	}
 	return authors
 }
 
-func isSeparator(r rune) bool {
-	return r == ',' || r == ';' || r == '-' || unicode.IsSpace(r)
-}
-
 func (ep *OPF) GetGenres() []string {
-	return strings.FieldsFunc(strings.Join(ep.Metadata.Subject, " "), isSeparator)
+	var finalGenres []string
+
+	for _, raw := range ep.Metadata.Subject {
+		processed := parser.ProcessGenres(raw)
+
+		finalGenres = append(finalGenres, strings.Fields(processed)...)
+	}
+
+	return finalGenres
 }
 
 func (ep *OPF) GetKeywords() string {
-	return strings.Join(strings.FieldsFunc(strings.Join(ep.Metadata.Subject, " "), isSeparator), " ")
+	return strings.Join(ep.GetGenres(), ", ")
 }
 
-func (ep *OPF) GetSerie() *model.Serie {
-	serie := &model.Serie{}
-
-	// 1. Стандарт EPUB 3 (belongs-to-collection)
-	for _, meta := range ep.Metadata.Meta {
-		if meta.Property == "belongs-to-collection" {
-			serie.Name = strings.TrimSpace(meta.Text)
-			// Если у коллекции есть ID, значит у нее вероятнее всего есть и номер. 
-			// Берем ее и точно останавливаем поиск.
-			if meta.ID != "" {
-				break
-			}
-		}
+func (ep *OPF) GetSequences() []*model.Sequence {
+	var seqs []*model.Sequence
+	seen := make(map[string]bool)
+	
+	lang := ep.Lang
+	if len(ep.Metadata.Language) > 0 {
+		lang = ep.Metadata.Language[0]
 	}
 
-	// 2. Расширение Calibre (calibre:series)
-	if serie.Name == "" {
-		for _, meta := range ep.Metadata.Meta {
-			if meta.Name == "calibre:series" {
-				serie.Name = strings.TrimSpace(meta.Content)
-				break
-			}
+	parseNum := func(s string) int {
+		if s == "" {
+			return 0
 		}
-	}
-
-	// 3. Generic fallback (просто "series", часто бывает в конвертерах)
-	if serie.Name == "" {
-		for _, meta := range ep.Metadata.Meta {
-			if meta.Name == "series" {
-				serie.Name = strings.TrimSpace(meta.Content)
-				break
-			}
-		}
-	}
-
-	return serie
-}
-
-func (ep *OPF) GetSerieNumber() int {
-	var indexStr string
-	var serieID string
-
-	// Ищем ID основной серии для EPUB 3
-	for _, meta := range ep.Metadata.Meta {
-		if meta.Property == "belongs-to-collection" && meta.ID != "" {
-			serieID = "#" + meta.ID
-			break
-		}
-	}
-
-	// 1. EPUB 3: ищем номер, который ссылается на ID серии через refines
-	if serieID != "" {
-		for _, meta := range ep.Metadata.Meta {
-			if meta.Property == "group-position" && meta.Refines == serieID {
-				indexStr = meta.Text
-				break
-			}
-		}
-	}
-
-	// 2. Calibre: ищем тег calibre:series_index
-	if indexStr == "" {
-		for _, meta := range ep.Metadata.Meta {
-			if meta.Name == "calibre:series_index" {
-				indexStr = meta.Content
-				break
-			}
-		}
-	}
-
-	// 3. Generic fallback: ищем просто "series_index"
-	if indexStr == "" {
-		for _, meta := range ep.Metadata.Meta {
-			if meta.Name == "series_index" {
-				indexStr = meta.Content
-				break
-			}
-		}
-	}
-
-	// Преобразование строки в число (с поддержкой дробных серий и запятых)
-	if indexStr != "" {
-		// Защита от русской запятой в дробях (например, "1,5" -> "1.5")
-		indexStr = strings.ReplaceAll(indexStr, ",", ".")
-		
+		s = strings.ReplaceAll(s, ",", ".")
 		var index float64
-		// fmt.Sscanf безопасно распарсит и "2", и "2.5", и "2.0"
-		fmt.Sscanf(indexStr, "%f", &index)
+		fmt.Sscanf(s, "%f", &index)
 		return int(index)
 	}
 
-	return 0
+	for _, meta := range ep.Metadata.Meta {
+		if meta.Property == "belongs-to-collection" {
+			name := parser.Title(strings.TrimSpace(meta.Text), lang)
+			if name == "" {
+				continue
+			}
+
+			num := 0
+			if meta.ID != "" {
+				serieID := "#" + meta.ID
+				for _, m := range ep.Metadata.Meta {
+					if m.Property == "group-position" && m.Refines == serieID {
+						num = parseNum(m.Text)
+						break
+					}
+				}
+			}
+
+			if !seen[name] {
+				seqs = append(seqs, &model.Sequence{Name: name, Sort: parser.GetSortSeriesOrAuthor(name, lang), Num: num})
+				seen[name] = true
+			}
+		}
+	}
+
+	var calName string
+	var calNum int
+	for _, meta := range ep.Metadata.Meta {
+		if meta.Name == "calibre:series" {
+			calName = parser.Title(strings.TrimSpace(meta.Content), lang)
+		}
+		if meta.Name == "calibre:series_index" {
+			calNum = parseNum(meta.Content)
+		}
+	}
+	if calName != "" && !seen[calName] {
+		seqs = append(seqs, &model.Sequence{Name: calName, Sort: parser.GetSortSeriesOrAuthor(calName, lang), Num: calNum})
+		seen[calName] = true
+	}
+
+	var genName string
+	var genNum int
+	for _, meta := range ep.Metadata.Meta {
+		if meta.Name == "series" {
+			genName = parser.Title(strings.TrimSpace(meta.Content), lang)
+		}
+		if meta.Name == "series_index" {
+			genNum = parseNum(meta.Content)
+		}
+	}
+	if genName != "" && !seen[genName] {
+		seqs = append(seqs, &model.Sequence{Name: genName, Sort: parser.GetSortSeriesOrAuthor(genName, lang), Num: genNum})
+	}
+
+	return seqs
 }

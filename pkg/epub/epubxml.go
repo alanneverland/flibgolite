@@ -88,7 +88,6 @@ type OPF struct {
 		Date string `xml:"date"`
 		// Provides a generic means of including package metadata.
 		Meta []struct {
-			// Добавляем поддержку ID для парсинга EPUB 3 коллекций
 			ID string `xml:"id,attr,omitempty"`	
 			// Takes a property data type value that defines the statement being made in the expression, and the text content of the element represents the assertion
 			Property string `xml:"property,attr"`
@@ -152,7 +151,7 @@ func NewOPF(zr *zip.ReadCloser, path string) (*OPF, error) {
 		return nil, err
 	}
 	defer r.Close()
-	opf := &OPF{opfPath: path} // Сохраняем путь в структуру
+	opf := &OPF{opfPath: path} 
 	if err := decodeXML(r, &opf); err != nil {
 		return nil, err
 	}
@@ -166,7 +165,6 @@ func GetCoverImage(stock string, book *model.Book) (image.Image, error) {
 	}
 	defer zr.Close()
 
-	// 1. Попытка быстрого открытия по точному пути
 	rc, err := zr.Open(book.Cover)
 	if err == nil {
 		defer rc.Close()
@@ -176,7 +174,6 @@ func GetCoverImage(stock string, book *model.Book) (image.Image, error) {
 		}
 	}
 
-	// 2. Fallback на поиск перебором
 	for _, file := range zr.File {
 		if strings.Contains(file.Name, book.Cover) {
 			rcOld, err := file.Open()
@@ -184,7 +181,6 @@ func GetCoverImage(stock string, book *model.Book) (image.Image, error) {
 				continue 
 			}
 			
-			// Декодируем и СРАЗУ закрываем, не дожидаясь конца функции
 			img, _, err := image.Decode(bufio.NewReader(rcOld))
 			rcOld.Close() 
 			

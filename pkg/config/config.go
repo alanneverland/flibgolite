@@ -17,9 +17,7 @@ import (
 // See config.yml for comments about this struct
 
 type Library struct {
-	STOCK_DIR string `yaml:"STOCK"`
-	TRASH_DIR string `yaml:"TRASH"`
-	NEW_DIR   string `yaml:"NEW"`
+	STOCK_DIR string `yaml:"STOCK"`	
 }
 type Database struct {
 	DSN               string `yaml:"DSN"`
@@ -27,11 +25,12 @@ type Database struct {
 	MAX_SCAN_THREADS  int    `yaml:"MAX_SCAN_THREADS"`
 	BOOK_QUEUE_SIZE   int    `yaml:"BOOK_QUEUE_SIZE"`
 	FILE_QUEUE_SIZE   int    `yaml:"FILE_QUEUE_SIZE"`
-	MAX_BOOKS_IN_TX   int    `yaml:"MAX_BOOKS_IN_TX"`
-	DEDUPLICATE_LEVEL string `yaml:"DEDUPLICATE_LEVEL"`
+	MAX_BOOKS_IN_TX   int    `yaml:"MAX_BOOKS_IN_TX"`	
 }
 type Genres struct {
 	TREE_FILE string `yaml:"TREE_FILE"`
+	ACCEPT_LIST  string `yaml:"ACCEPT_LIST"`
+	REJECT_LIST  string `yaml:"REJECT_LIST"`
 }
 type Logs struct {
 	OPDS  string `yaml:"OPDS"`
@@ -71,7 +70,7 @@ func makeAbs(rootDir, path string) string {
 	return filepath.Join(rootDir, path)
 }
 
-//go:embed config.yml
+//go:embed config-al.yml
 var CONFIG_YML string
 
 func LoadConfig(rootDir string) *Config {
@@ -79,7 +78,7 @@ func LoadConfig(rootDir string) *Config {
 		b   []byte
 		err error
 	)
-	configFile := filepath.Join(rootDir, "config", "config.yml")
+	configFile := filepath.Join(rootDir, "config", "config-al.yml")
 
 	b, err = os.ReadFile(configFile)
 	if err != nil { // config file not found, create default
@@ -103,35 +102,34 @@ func LoadConfig(rootDir string) *Config {
 	c := &Config{
 		Library: Library{
 			STOCK_DIR: "books/stock",
-			TRASH_DIR: "",
-			NEW_DIR:   "",
 		},
 		Database: Database{
-			DSN:               "dbdata/books.db",
-			POLL_DELAY:        300,
-			MAX_SCAN_THREADS:  1,
-			BOOK_QUEUE_SIZE:   256,
-			FILE_QUEUE_SIZE:   256,
-			MAX_BOOKS_IN_TX:   256,
-			DEDUPLICATE_LEVEL: "N",
+			DSN:               "dbdata/books-al.db",
+			POLL_DELAY:        3600,
+			MAX_SCAN_THREADS:  8,
+			BOOK_QUEUE_SIZE:   8192,
+			FILE_QUEUE_SIZE:   8192,
+			MAX_BOOKS_IN_TX:   8192,
 		},
 		Genres: Genres{
 			TREE_FILE: "config/genres.xml",
+			ACCEPT_LIST: "any",
+			REJECT_LIST: "",
 		},
 		Logs: Logs{
-			OPDS:  "logs/opds.log",
-			SCAN:  "logs/scan.log",
+			OPDS:  "logs/opds-al.log",
+			SCAN:  "logs/scan-al.log",
 			LEVEL: "W",
 		},
 		OPDS: OPDS{
-			PORT:          8085,
-			TITLE:         "FLib Go Go Go!!!",
+			PORT:          8087,
+			TITLE:         "FLibGoLite-Al",
 			PAGE_SIZE:     20,
-			LATEST_DAYS:   28,
-			NO_CONVERSION: false,
+			LATEST_DAYS:   33,
+			NO_CONVERSION: true,
 		},
 		Locales: locales.Locales{
-			DIR:      "config/locales",
+			DIR:      "config/locales-al",
 			DEFAULT:  "en",
 			ACCEPTED: "any",
 		},
@@ -145,13 +143,7 @@ func LoadConfig(rootDir string) *Config {
 		log.Fatal(err)
 	}
 
-	c.Library.STOCK_DIR = makeAbs(rootDir, c.Library.STOCK_DIR)
-	if len(c.Library.TRASH_DIR) > 0 {
-		c.Library.TRASH_DIR = makeAbs(rootDir, c.Library.TRASH_DIR)
-	}
-	if len(c.Library.NEW_DIR) > 0 {
-		c.Library.NEW_DIR = makeAbs(rootDir, c.Library.NEW_DIR)
-	}
+	c.Library.STOCK_DIR = makeAbs(rootDir, c.Library.STOCK_DIR)	
 	c.Locales.DIR = makeAbs(rootDir, c.Locales.DIR)
 	c.Genres.TREE_FILE = makeAbs(rootDir, c.Genres.TREE_FILE)
 	c.Database.DSN = makeAbs(rootDir, c.Database.DSN)

@@ -368,7 +368,16 @@ func getCoverPageBinary(coverLink string, rc io.ReadCloser) (*Binary, error) {
 	coverLink = strings.TrimPrefix(coverLink, "#")
 TokenLoop:
 	for {
-		t, _ := decoder.Token()
+		//t, _ := decoder.Token()
+		t, err := decoder.Token()
+
+		if err != nil {
+			if err == io.EOF {
+				return nil, fmt.Errorf("binary cover '%s' not found in file", coverLink)
+			}
+			return nil, fmt.Errorf("FB2 xml parsing error: %v", err)
+		}
+	
 		if t == nil {
 			return nil, errors.New("FB2 xml error")
 		}
@@ -400,6 +409,11 @@ func (b *Binary) String() string {
 }
 
 func GetCoverImage(stock string, book *model.Book) (image.Image, error) {
+	//fmt.Println("--- GetCoverImage START ---\n")
+
+	
+	//fmt.Printf("book.Archive: %s, stock: %s, book.File: %s\n", book.Archive, stock, book.File)
+	
 	var rc io.ReadCloser
 	if book.Archive == "" {
 		rc, _ = os.Open(path.Join(stock, book.File))
@@ -409,22 +423,31 @@ func GetCoverImage(stock string, book *model.Book) (image.Image, error) {
 			return nil, err
 		}
 		defer zr.Close()
-		for _, file := range zr.File {
-			if file.Name == book.File {
-				rc, _ = file.Open()
-				break
-			}
+		//for _, file := range zr.File {
+		//	if file.Name == book.File {
+		//		rc, _ = file.Open()
+		//		break
+		//	}
+		//}
+		rc, err = zr.Open(book.File)
+		if err != nil {
+			return nil, fmt.Errorf("file %s not found in archive %s: %v", book.File, book.Archive, err)
 		}
 	}
 	defer rc.Close()
+	
+	//fmt.Printf("book.Cover: %s\n", book.Cover)
 	b, err := getCoverPageBinary(book.Cover, rc)
 	if err != nil {
+		//fmt.Println("--- GetCoverImage ERR1:%v ---\n", err)
 		return nil, err
 	}
 	br := base64.NewDecoder(base64.StdEncoding, bytes.NewReader(b.Content))
 	img, _, err := image.Decode(br)
 	if err != nil {
+		//fmt.Println("--- GetCoverImage ERR2 --- \n")
 		return nil, err
 	}
+	//fmt.Println("--- GetCoverImage OK ---\n")
 	return img, nil
 }

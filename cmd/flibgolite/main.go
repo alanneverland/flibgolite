@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	//"runtime/debug"
+	//"sync/atomic"
 	"time"
 
 	"github.com/kardianos/service"
@@ -117,6 +119,11 @@ func reindexStock() {
 	}
 
 	cfg := config.LoadConfig(rootDir)
+	//if cfg.Database.MAX_SCAN_THREADS == 1 {
+		//runtime.GOMAXPROCS(1)
+		//debug.SetMemoryLimit(120 * 1024 * 1024)
+		//debug.SetGCPercent(40)
+	//}
 	os.Remove(cfg.Database.DSN)
 
 	if runningService {
@@ -139,45 +146,42 @@ func reindexStock() {
 		stockLog.S.Println("Book stock was inited. Tables were created in empty database")
 	}
 
-	genresTree := genres.NewGenresTree(cfg.Genres.TREE_FILE)
+	genresTree := genres.NewGenresTree(cfg.Genres.TREE_FILE, cfg.Genres.ACCEPT_LIST, cfg.Genres.REJECT_LIST, stockLog)
+		
 	hashes := hash.InitHashes(db.DB)
 
 	bookQueue := make(chan model.Book, cfg.Database.BOOK_QUEUE_SIZE)
 	defer close(bookQueue)
-	fileQueue := make(chan stock.File, cfg.Database.FILE_QUEUE_SIZE)
-	defer close(fileQueue)
+	
 	stockHandler := &stock.Handler{
 		CFG:       cfg,
 		LOG:       stockLog,
 		DB:        db,
 		GT:        genresTree,
-		BookQueue: bookQueue,
-		FileQueue: fileQueue,
+		BookQueue: bookQueue,		
 		Hashes:    hashes,
-	}
+		ScanSema:  make(chan struct{}, cfg.Database.MAX_SCAN_THREADS),
+	}	
 	stockHandler.StopDB = make(chan struct{})
 	defer close(stockHandler.StopDB)
-	stockHandler.StopScan = make(chan struct{})
-	defer close(stockHandler.StopScan)
+	//stockHandler.StopScan = make(chan struct{})
+	//defer close(stockHandler.StopScan)
 
+	stockHandler.SyncDB = make(chan chan struct{})
+	
 	stockHandler.InitStockFolders()
 	go stockHandler.AddBooksToIndex()
-	for i := 0; i < cfg.Database.MAX_SCAN_THREADS; i++ {
-		go stockHandler.ParseFB2Queue()
-	}
-
-	defer func() { stockHandler.StopScan <- struct{}{} }()
+	
+	//defer func() { stockHandler.StopScan <- struct{}{} }()
 	dir := cfg.Library.STOCK_DIR
-	if len(cfg.Library.NEW_DIR) > 0 {
-		dir = cfg.Library.NEW_DIR
-	}
+	
 	stockHandler.ScanDir(dir)
 
-	stockHandler.StopScan <- struct{}{}
+	//stockHandler.StopScan <- struct{}{}
 
 	stockHandler.StopDB <- struct{}{}
 	<-stockHandler.StopDB
-
+	
 	stockLog.S.Println("<<< Book stock reindex finished <<<<<<<<<<<<<<<<<<<<<<<<<<<")
 	stockLog.S.Println("Time elapsed: ", time.Since(start))
 
@@ -186,7 +190,13 @@ func reindexStock() {
 
 func run() {
 	cfg := config.LoadConfig(rootDir)
-
+	//if cfg.Database.MAX_SCAN_THREADS == 1 {
+	//	runtime.GOMAXPROCS(1)
+	//	//debug.SetMemoryLimit(120 * 1024 * 1024)
+	//	//debug.SetGCPercent(40)
+	//}
+	
+	
 	cfg.Locales.LoadLocales()
 
 	stockLog, opdsLog := cfg.InitLogs(true)
@@ -200,8 +210,8 @@ func run() {
 		stockLog.S.Println("Book stock was inited. Tables were created in empty database")
 	}
 
-	genresTree := genres.NewGenresTree(cfg.Genres.TREE_FILE)
-
+	genresTree := genres.NewGenresTree(cfg.Genres.TREE_FILE, cfg.Genres.ACCEPT_LIST, cfg.Genres.REJECT_LIST, stockLog)	
+	
 	// Starting OPDS
 	opdsHandler := &opds.Handler{
 		CFG: cfg,
@@ -209,8 +219,8 @@ func run() {
 		DB:  db,
 		GT:  genresTree,
 		MP:  make(map[string]*message.Printer, len(cfg.Locales.Languages)),
-		CoverSema: make(chan struct{}, 2),
-		DownloadSema: make(chan struct{}, 2),
+		CoverSema: make(chan struct{}, cfg.Database.MAX_SCAN_THREADS * 2),
+		DownloadSema: make(chan struct{}, cfg.Database.MAX_SCAN_THREADS * 4),
 	}
 
 	for k, v := range cfg.Locales.Languages {
@@ -232,18 +242,20 @@ func run() {
 	// Starting book stock
 	bookQueue := make(chan model.Book, cfg.Database.BOOK_QUEUE_SIZE)
 	defer close(bookQueue)
-	fileQueue := make(chan stock.File, cfg.Database.FILE_QUEUE_SIZE)
-	defer close(fileQueue)
+	
 	stockHandler := &stock.Handler{
 		CFG:       cfg,
 		LOG:       stockLog,
 		DB:        db,
 		GT:        genresTree,
 		BookQueue: bookQueue,
-		FileQueue: fileQueue,
+		ScanSema:  make(chan struct{}, cfg.Database.MAX_SCAN_THREADS),
 	}
 	stockHandler.StopDB = make(chan struct{})
 	defer close(stockHandler.StopDB)
+	
+	stockHandler.SyncDB = make(chan chan struct{})
+	
 	stockHandler.InitStockFolders()
 	stockHandler.StopScan = make(chan struct{})
 	defer close(stockHandler.StopScan)
@@ -252,17 +264,13 @@ func run() {
 	stockHandler.Hashes = hash.InitHashes(db.DB)
 
 	go stockHandler.AddBooksToIndex()
-	for i := 0; i < cfg.Database.MAX_SCAN_THREADS; i++ {
-		go stockHandler.ParseFB2Queue()
-	}
+	
 	go func() {
 		defer func() { stockHandler.StopScan <- struct{}{} }()
 		dir := cfg.Library.STOCK_DIR
-		if len(cfg.Library.NEW_DIR) > 0 {
-			dir = cfg.Library.NEW_DIR
-		}
+		
 		for {
-			stockHandler.ScanDir(dir)
+			stockHandler.ScanDir(dir)						
 			time.Sleep(time.Duration(cfg.Database.POLL_DELAY) * time.Second)
 			select {
 			case <-stockHandler.StopScan:

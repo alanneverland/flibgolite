@@ -1,50 +1,51 @@
 library:
   # Book folders
-  STOCK: "books/stock" # Book stock
-  #TRASH: "books/trash" # Error and duplicate files and archives will be moved to this folder 
-  #NEW: "books/new" # Uncomment the line to have separate folder for new acquired books
+  STOCK: "books/stock" # Book stock  
 
 genres:
   TREE_FILE: "config/genres.xml"
- 
+  # Accept only these genres publications. Set "any" to accept any genres 
+  ACCEPT_LIST: "any"
+  # Reject if the book has these genres
+  REJECT_LIST: ""
+  
+  
 database:
-  DSN: "dbdata/books.db"
+  DSN: "dbdata/books-al.db"
   # Delay before start each new acquisitions folder processing
-  POLL_DELAY: 1800 
+  POLL_DELAY: 3600 
   # Maximum parallel new acquisitions processing routines
-  MAX_SCAN_THREADS: 1
+  MAX_SCAN_THREADS: 8
   # Book queue size
-  BOOK_QUEUE_SIZE: 256
+  BOOK_QUEUE_SIZE: 8192
   # File queue size
-  FILE_QUEUE_SIZE: 256
+  FILE_QUEUE_SIZE: 8192
   # Maximum number of books in one transaction
-  MAX_BOOKS_IN_TX: 256
-  # Level of checking new books for duplicates: N - no check, F - fast check (default) by CRC32, S - slow check by CRC32 or title and plot comparison
-  DEDUPLICATE_LEVEL: "N"
+  MAX_BOOKS_IN_TX: 8192
 
 # Logs are here
 logs:
   # To redirect the log output to console (stdout) just comment out the appropriate line OPDS or SCAN
-  OPDS: "logs/opds.log"
-  SCAN: "logs/scan.log"
+  OPDS: "logs/opds-al.log"
+  SCAN: "logs/scan-al.log"
   # Logging levels: D - debug, I - info, W - warnings (default), E - errors
   LEVEL: "W" 
 
 opds:
   # OPDS-server port so opds can be found at http://<server name or IP-address or localhost>:8085/opds
-  PORT: 8085
+  PORT: 8087
   # OPDS-server title that is displayed in a book reader
-  TITLE: "FLib Go Go Go!!!"
+  TITLE: "FLibGoLite-Al"
   # OPDS feeds entries page size
   PAGE_SIZE: 20
   # Latest books period in days
-  LATEST_DAYS: 28
+  LATEST_DAYS: 35
   # Do not convert FB2 to EPUB format if set to true, default: false
-  NO_CONVERSION: false
+  NO_CONVERSION: true
 
 locales:
   # Locales folder. You can add your own locale file there like en.yml, ru.yml, uk.yml
-  DIR: "config/locales"
+  DIR: "config/locales-al"
   # Default english locale for opds feeds (bookreaders opds menu tree) can be changed to:
   # "uk" for Ukrainian, 
   # "ru" for Russian 
@@ -61,11 +62,3 @@ auth:
 #  METHOD: "plain"
 #   and fill authentication credentials in plain text format username:password 
 #  CREDS: "username:password"
-#
-#   ! Not implemented yet. Set METHOD to file for http basic authentication with user credentials from users.yml file 
-#  METHOD: "file"
-#   and set file path to users.yml file. To add/edit users use command line option -users 
-#  FILE: "config/users.yml"
-#
-#   ! Not implemented yet. Set METHOD to db for http basic authentication with user credentials from database
-#  METHOD: "db"

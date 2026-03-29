@@ -1,128 +1,120 @@
 package hash
 
 import (
-	"hash/crc32"
 	"log"
 	"sync"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/vinser/flibgolite/pkg/model"
 )
 
 type BookState int64
 
 const (
 	Unique BookState = -1 * iota
-	DuplicateCRC32
-	DuplicateTitlePlot
 	FileIsEmpty
 	FileHasErrors
 	LanguageNotAccepted
+	GenreNotAccepted
 	BadArchive
 	UnsupportedFormat
 	FileOpenFailed
-	FileIsNotRegular
+	ArchiveContainer
+	UnchangedFile
+	UnchangedArchive
 )
-const MIN_TITLEPLOT_LEN = 128
 
 type BookHashes struct {
-	Archives  map[string]map[string]int
-	Files     map[string]int
-	CRC32     map[uint32]int
-	TitlePlot map[uint32]int
+	Archives  map[string]map[string]int64
+	Files     map[string]int64
 	mx        sync.RWMutex
 }
 
 func InitHashes(db *sqlx.DB) *BookHashes {
-	count := 0
-	db.QueryRowx(`SELECT count(*) FROM books`).Scan(&count)
-	bh := &BookHashes{
-		Archives:  make(map[string]map[string]int),
-		Files:     make(map[string]int),
-		CRC32:     make(map[uint32]int, count),
-		TitlePlot: make(map[uint32]int, count),
-	}
-	rows, err := db.Query(`SELECT file, archive, crc32, title, plot FROM books`)
-	if err != nil {
-		log.Panicln(err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		b := &model.Book{}
-		err := rows.Scan(&b.File, &b.Archive, &b.CRC32, &b.Title, &b.Plot)
-		if err != nil {
-			log.Panicln(err)
-		}
-		bh.Add(b.File, b.Archive)
-		if b.CRC32 != 0 {
-			bh.CRC32[b.CRC32] = 1
-		}
-		tpBytes := []byte(b.Title + b.Plot)
-		if len(tpBytes) >= MIN_TITLEPLOT_LEN {
-			bh.CRC32[crc32.ChecksumIEEE(tpBytes)] = 1
-		}
-	}
+	bh := &BookHashes{}
+	bh.Reload(db)
 	return bh
 }
 
-func (bh *BookHashes) Add(file, archive string) {
+func (bh *BookHashes) Reload(db *sqlx.DB) {
 	bh.mx.Lock()
 	defer bh.mx.Unlock()
-	if archive == "" {
-		bh.Files[file] = 1
-	} else {
-		if _, ok := bh.Archives[archive]; !ok {
-			bh.Archives[archive] = make(map[string]int)
+
+	bh.Archives = make(map[string]map[string]int64)
+	bh.Files = make(map[string]int64)
+
+	rows, err := db.Query(`SELECT file, archive, size FROM books`)
+	if err != nil {
+		log.Println("Reload cache error:", err)
+		return
+	}
+	defer rows.Close()
+
+	var file, archive string
+	var size int64
+	
+	for rows.Next() {
+		err := rows.Scan(&file, &archive, &size)
+		if err != nil {
+			continue
 		}
-		if file != "" {
-			bh.Archives[archive][file] = 1
+
+		if archive == "" {
+			bh.Files[file] = size
+		} else {
+			archMap, ok := bh.Archives[archive]
+			if !ok {
+				archMap = make(map[string]int64)
+				bh.Archives[archive] = archMap
+			}
+			if file != "" {
+				archMap[file] = size
+			}
 		}
 	}
 }
 
-func (bh *BookHashes) FileExists(file, archive string) bool {
-	bh.mx.RLock()
-	defer bh.mx.RUnlock()
+func (bh *BookHashes) Clear() {
+	bh.mx.Lock()
+	defer bh.mx.Unlock()
+
+	bh.Archives = make(map[string]map[string]int64)
+	bh.Files = make(map[string]int64)
+}
+
+func (bh *BookHashes) Add(file, archive string, size int64) {
+	bh.mx.Lock()
+	defer bh.mx.Unlock()
+		
 	if archive == "" {
-		_, ok := bh.Files[file]
-		return ok
-	}
-	if _, ok := bh.Archives[archive]; ok {
-		if _, ok := bh.Archives[archive][file]; ok {
-			return true
+		bh.Files[file] = size
+	} else {
+		if _, ok := bh.Archives[archive]; !ok {
+			bh.Archives[archive] = make(map[string]int64)
+		}
+		if file != "" {
+			bh.Archives[archive][file] = size
 		}
 	}
+}
+
+func (bh *BookHashes) IsUnchanged(file, archive string, size int64) bool {
+	bh.mx.RLock()
+	defer bh.mx.RUnlock()
+	
+	if archive == "" {
+		if cachedSize, ok := bh.Files[file]; ok {
+			return cachedSize == size
+		}
+		return false
+	}
+	
+	if _, ok := bh.Archives[archive]; ok {
+		if cachedSize, ok := bh.Archives[archive][file]; ok {
+			return cachedSize == size
+		}
+	}
+	
 	return false
 }
 
-func (bh *BookHashes) ArchiveExists(archive string) bool {
-	bh.mx.RLock()
-	defer bh.mx.RUnlock()
-	_, ok := bh.Archives[archive]
-	return ok
-}
 
-func (bh *BookHashes) GetState(b *model.Book, level string) BookState {
-	bh.mx.Lock()
-	defer bh.mx.Unlock()
-	if b.Updated < 0 {
-		return BookState(b.Updated)
-	}
-	if level != "N" {
-		if _, ok := bh.CRC32[b.CRC32]; ok {
-			return DuplicateCRC32
-		}
-		bh.CRC32[b.CRC32] = 1
-	}
-	if level == "S" {
-		tpBytes := []byte(b.Title + b.Plot)
-		if len(tpBytes) >= MIN_TITLEPLOT_LEN {
-			tpCRC32 := crc32.ChecksumIEEE(tpBytes)
-			if _, ok := bh.TitlePlot[tpCRC32]; ok {
-				return DuplicateTitlePlot
-			}
-			bh.TitlePlot[tpCRC32] = 1
-		}
-	}
-	return Unique
-}

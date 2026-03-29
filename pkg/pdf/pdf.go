@@ -3,10 +3,10 @@ package pdf
 import (
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/vinser/flibgolite/pkg/model"
 	"github.com/vinser/flibgolite/pkg/parser"
-	"golang.org/x/text/language"
 )
 
 func (p *PDF) GetFormat() string {
@@ -16,14 +16,16 @@ func (p *PDF) GetFormat() string {
 func (p *PDF) GetTitle() string {
 	title := strings.TrimSpace(p.Info["Title"])
 	if title == "" {
-		// Если в PDF пусто — берем имя файла
 		return strings.TrimSuffix(p.FileName, filepath.Ext(p.FileName))
 	}
 	return title
 }
 
 func (p *PDF) GetSort() string {
-	return parser.GetSortTitle(p.GetTitle(), language.English)
+
+	langTag := parser.GetLanguageTag(p.getLangCode())
+	
+	return parser.GetSortTitle(p.GetTitle(), langTag)
 }
 
 func (p *PDF) GetYear() string {
@@ -39,29 +41,35 @@ func (p *PDF) GetCover() string {
 }
 
 func (p *PDF) GetLanguage() *model.Language {
-	return parser.GetLanguage("en") // Дефолтный язык для PDF
+	return parser.GetLanguage(p.getLangCode())
 }
 
 func (p *PDF) GetAuthors() []*model.Author {
 	authors := make([]*model.Author, 0)
 	rawAuthor := strings.TrimSpace(p.Info["Author"])
+	
+	lang := p.getLangCode()
 
 	if rawAuthor != "" {
 		name := parser.ParseFullName(rawAuthor)
-		
-		// Если парсер нашел имя/фамилию — создаем объект
+
 		if name.First != "" || name.Last != "" {
-			a := &model.Author{
-				Name: strings.TrimSpace(name.First + " " + name.Middle + " " + name.Last),
-				Sort: strings.ToUpper(strings.TrimSuffix(name.Last+", "+name.First+" "+name.Middle, ", ")),
+
+			fullName := strings.TrimSpace(name.Last + " " + name.First + " " + name.Middle)
+
+			for strings.Contains(fullName, "  ") {
+				fullName = strings.ReplaceAll(fullName, "  ", " ")
 			}
-			authors = append(authors, a)
+
+			authors = append(authors, &model.Author{
+				Name: fullName,
+				Sort: parser.GetSortSeriesOrAuthor(fullName, lang),
+			})
 		} else {
-			// FALLBACK: Если парсер имен не справился, берем строку "как есть"
-			// Это поможет для организаций или псевдонимов
+
 			authors = append(authors, &model.Author{
 				Name: rawAuthor,
-				Sort: strings.ToUpper(rawAuthor),
+				Sort: parser.GetSortSeriesOrAuthor(rawAuthor, lang),
 			})
 		}
 	}
@@ -69,30 +77,98 @@ func (p *PDF) GetAuthors() []*model.Author {
 	if len(authors) == 0 {
 		authors = append(authors, &model.Author{
 			Name: "[author not specified]",
-			Sort: "[author not specified]",
+			Sort: "[AUTHOR NOT SPECIFIED]",
 		})
 	}
 	return authors
 }
 
 func (p *PDF) GetGenres() []string {
+	var finalGenres []string
+
 	keywords := p.Info["Keywords"]
-	if keywords == "" {
-		return []string{}
+	if keywords != "" {
+		processed := parser.ProcessGenres(keywords)
+		finalGenres = append(finalGenres, strings.Fields(processed)...)
 	}
-	return strings.FieldsFunc(keywords, func(r rune) bool {
-		return r == ',' || r == ';'
-	})
+
+	return finalGenres
 }
 
 func (p *PDF) GetKeywords() string {
-	return p.Info["Keywords"]
+	return strings.Join(p.GetGenres(), ", ")
 }
 
-func (p *PDF) GetSerie() *model.Serie {
-	return &model.Serie{}
+func (m *PDF) GetSequences() []*model.Sequence {
+	return []*model.Sequence{}
 }
 
-func (p *PDF) GetSerieNumber() int {
-	return 0
+func detectLanguageByAlphabet(text string) string {
+	text = strings.ToLower(text)
+	
+	var hasCyrillic, hasLatin bool
+
+	for _, r := range text {
+
+		switch r {
+		case 'і', 'ї', 'є', 'ґ':
+			return "uk" 
+		case 'ў':
+			return "be" 
+		case 'ъ', 'ы', 'э':
+			return "ru" 
+		case 'ä', 'ö', 'ü', 'ß':
+			return "de" 
+		case 'é', 'à', 'è', 'ù', 'â', 'ê', 'î', 'ô', 'û', 'ç':
+			return "fr" 
+		case 'ñ', 'á', 'í', 'ó', 'ú', '¿', '¡':
+			return "es" 
+		}
+
+		if unicode.Is(unicode.Cyrillic, r) {
+			hasCyrillic = true
+		} else if unicode.Is(unicode.Latin, r) && unicode.IsLetter(r) {
+			hasLatin = true
+		} else if unicode.Is(unicode.Han, r) {
+			return "zh" 
+		} else if unicode.Is(unicode.Arabic, r) {
+			return "ar" 
+		}
+	}
+
+	if hasCyrillic {
+
+		return "ru"
+	}
+	
+	if hasLatin {
+
+		return "en"
+	}
+
+	return "en" 
+}
+
+func (p *PDF) getLangCode() string {
+
+	headerText := p.GetTitle() + " " + p.Info["Author"]
+	if lang := detectLanguageByAlphabet(headerText); lang != "en" {
+		return lang
+	}
+
+	if pageText := p.Info["FirstPageText"]; pageText != "" {
+		if lang := detectLanguageByAlphabet(pageText); lang != "en" {
+			return lang
+		}
+	}
+
+	lang := strings.TrimSpace(p.Info["Lang"])
+	if lang != "" {
+		if idx := strings.Index(lang, "-"); idx != -1 {
+			lang = lang[:idx]
+		}
+		return strings.ToLower(lang)
+	}
+
+	return "en"
 }

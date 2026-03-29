@@ -10,12 +10,16 @@ import (
 	"strings"
 
 	"github.com/vinser/flibgolite/pkg/model"
-	"github.com/vinser/flibgolite/pkg/parser"
+	"github.com/vinser/flibgolite/pkg/rlog"
+	//"github.com/vinser/flibgolite/pkg/parser"
 )
 
 type GenresTree struct {
 	XMLName xml.Name `xml:"fbgenrestransfer"`
 	Genres  []Genre  `xml:"genre"`
+	Accepted map[string]bool
+	Rejected  map[string]bool
+	AcceptAny bool            
 }
 
 type Genre struct {
@@ -49,7 +53,7 @@ type GenreAlt struct {
 //go:embed genres.xml
 var GENRES_XML string
 
-func NewGenresTree(treeFile string) *GenresTree {
+func NewGenresTree(treeFile, acceptStr, rejectStr string, logger *rlog.Log) *GenresTree {
 	var b []byte
 	var err error
 	gt := &GenresTree{}
@@ -67,13 +71,105 @@ func NewGenresTree(treeFile string) *GenresTree {
 	decoder := xml.NewDecoder(bytes.NewReader(b))
 	decoder.Strict = false
 	decoder.Decode(&gt)
+
+	parseList := func(listStr string, listName string) map[string]bool {
+		res := make(map[string]bool)
+		listStr = strings.ToLower(strings.TrimSpace(listStr))
+
+		if listStr == "" || listStr == "any" {
+			return res
+		}
+
+		tokens := strings.Fields(strings.ReplaceAll(listStr, ",", " "))
+		for _, token := range tokens {
+			if token == "" {
+				continue
+			}
+
+			foundInTree := false
+
+			for _, g := range gt.Genres {
+				if g.Value == token {
+					foundInTree = true
+					for _, sg := range g.Subgenres {
+						res[sg.Value] = true
+					}
+					break
+				}
+				for _, sg := range g.Subgenres {
+					if sg.Value == token {
+						foundInTree = true
+						res[sg.Value] = true
+						break
+					}
+				}
+				if foundInTree {
+					break
+				}
+			}
+
+			if !foundInTree {
+				if logger != nil {
+					logger.W.Printf("genre '%s' from %s config not found in genres tree, ignored\n", token, listName)
+				} else {
+					log.Printf("W: genre '%s' from %s config not found in genres tree, ignored\n", token, listName)
+				}
+			}
+		}
+		return res
+	}
+
+	gt.Rejected = parseList(rejectStr, "REJECT_LIST")
+
+	isAcceptEmpty := strings.TrimSpace(acceptStr) == "" || strings.ToLower(strings.TrimSpace(acceptStr)) == "any"
+
+	if isAcceptEmpty {
+		gt.AcceptAny = true
+	} else {
+		gt.Accepted = parseList(acceptStr, "ACCEPT_LIST")
+
+		if len(gt.Accepted) == 0 {
+			if logger != nil {
+				logger.W.Println("no valid genres in ACCEPT_LIST, fallback to 'any'")
+			} else {
+				log.Println("W: no valid genres in ACCEPT_LIST, fallback to 'any'")
+			}
+			gt.AcceptAny = true
+		}
+	}
+
 	return gt
+}
+
+func (gt *GenresTree) IsAccepted(refinedGenres []string) bool {
+
+	if len(refinedGenres) == 0 {
+		return gt.AcceptAny 
+	}
+
+	for _, g := range refinedGenres {
+		if gt.Rejected[g] {
+			return false
+		}
+	}
+
+	if gt.AcceptAny {
+		return true
+	}
+
+	for _, g := range refinedGenres {
+		if gt.Accepted[g] {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (gt *GenresTree) Refine(b *model.Book) {
 	genres := make(map[string]struct{})
 	for i := len(b.Genres) - 1; i >= 0; i-- {
-		b.Genres[i] = strings.ReplaceAll(parser.CollapseSpaces(b.Genres[i]), "-", "_")
+
 		found := false
 	Found:
 		for _, g := range gt.Genres {

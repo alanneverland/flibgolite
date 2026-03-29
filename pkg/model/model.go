@@ -6,17 +6,30 @@ type Language struct {
 	Name string
 }
 
+type LanguageStat struct {
+	Code  string	
+	Name string
+	Count int
+}
+
 type Author struct {
 	ID    int64
 	Name  string
 	Sort  string
-	Count int // for intermediate keeping author book counts
+	Count int 
+}
+
+type Sequence struct {
+	ID   int64
+	Name string
+	Sort  string
+	Num  int
 }
 
 type Book struct {
 	ID       int64
+	FolderID int64
 	File     string
-	CRC32    uint32
 	Archive  string
 	Size     int64
 	Format   string
@@ -28,10 +41,10 @@ type Book struct {
 	Language *Language
 	Authors  []*Author
 	Genres   []string
-	Keywords string
-	Serie    *Serie
-	SerieNum int
+	Keywords string	
 	Updated  int64
+	Sequences []*Sequence
+	IsMultiArchive bool
 }
 
 type Genre struct {
@@ -43,6 +56,14 @@ type Genre struct {
 
 type Serie struct {
 	ID    int64
-	Name  string
-	Count int // for intermediate keeping serie book counts
+	Name  string	
+	Sort  string
+	Count int 
+}
+
+type Folder struct {
+	ID       int64
+	ParentID int64
+	Name     string	
+	Count    int
 }

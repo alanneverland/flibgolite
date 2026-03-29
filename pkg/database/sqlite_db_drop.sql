@@ -1,7 +1,14 @@
-DROP TABLE IF EXISTS languages;
+DROP TABLE IF EXISTS folders;
 DROP TABLE IF EXISTS authors;
 DROP TABLE IF EXISTS books;
 DROP TABLE IF EXISTS genres;
 DROP TABLE IF EXISTS series;
 DROP TABLE IF EXISTS books_authors;
 DROP TABLE IF EXISTS books_genres;
+DROP TABLE IF EXISTS books_series;
+DROP TABLE IF EXISTS authors_fts;
+DROP TABLE IF EXISTS books_fts;
+DROP TABLE IF EXISTS series_fts;
+DROP TABLE IF EXISTS stats_main;
+DROP TABLE IF EXISTS stats_genres;
+DROP TABLE IF EXISTS stats_subgenres;

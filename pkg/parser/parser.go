@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"regexp"
 	"strings"
-
+	"unicode"
 	"github.com/vinser/flibgolite/pkg/model"
 	"golang.org/x/net/html"
 	"golang.org/x/text/cases"
@@ -23,8 +23,7 @@ type Parser interface {
 	GetAuthors() []*model.Author
 	GetGenres() []string
 	GetKeywords() string
-	GetSerie() *model.Serie
-	GetSerieNumber() int
+	GetSequences() []*model.Sequence
 }
 
 func RefineName(n, lang string) string {
@@ -50,6 +49,12 @@ func GetSortTitle(title string, tag language.Tag) string {
 	}
 	title = cases.Upper(tag).String(AlphaNum(title))
 	return title
+}
+
+func GetSortSeriesOrAuthor(name string, lang string) string {
+	name = strings.TrimSpace(name)	
+	name = cases.Upper(GetLanguageTag(lang)).String(AlphaNum(name))
+	return name
 }
 
 func GetLanguageTag(lang string) language.Tag {
@@ -130,3 +135,33 @@ func removeHtmlTags(node *html.Node, buf *bytes.Buffer) {
 		removeHtmlTags(child, buf)
 	}
 }
+
+func ProcessGenres(raw string) string {
+	s := raw
+
+
+	s = strings.ReplaceAll(s, "- ", " ")
+
+	s = strings.ReplaceAll(s, " -", " ")
+
+	s = strings.ReplaceAll(s, "-", "_")
+
+	s = strings.ReplaceAll(s, "\\", " ")
+	s = strings.ReplaceAll(s, "/", " ")
+
+	s = strings.Map(func(r rune) rune {
+		if r == '_' {
+			return r 
+		}
+		if unicode.IsPunct(r) || unicode.IsSymbol(r) {
+			return ' '
+		}
+		return r
+	}, s)
+
+	s = strings.ToLower(s)
+
+	return strings.Join(strings.Fields(s), " ")
+}
+
+

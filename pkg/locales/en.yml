@@ -1,64 +1,37 @@
-ABC: 0123456789АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯABCDEFGHIJKLMNOPQRSTUVWXYZ
-# Root
-~Latest Books: Latest
-^Browse the latest books received: Browse the latest books received
-~Book Authors: Authors 
-^Browse books by author: Browse books by author
-~Book Series: Series
-^Browse books by series: Browse books by series
-~Book Genres: Genres
-^Browse books by genre: Browse books by genre
-~Book Languages: Languages
-^Language selection: Language selection
-# Latest
-Latest: Latest
-Latest Found titles - %d: Found titles - %d
-Nothing new: Nothing new
-# Languages
-Choose language: Choose language
-^Language Total books - %d: Total books - %d 
-# Search
-Found authors - %d: Found authors - %d
-~Authors found: Authors
-^Authors found - %d: Found authors - %d
-Found books - %d: Found titles - %d 
-~Titles: Titles
-^Found books - %d: Found titles - %d 
-Found by keywords - %d: Found books by keywords - %d 
-~Keywords: Keywords
-^Found by keywords - %d: Found titles - %d 
-Nothing found: Nothing found 
-Choose from the found ones: Choose from the found ones
-^Total books found - %d: Total books - %d
-# Authors
-Authors: Authors 
-~Author not specified: Author not specified
-^Author not specified: Author not specified
+ABC: ABCDEFGHIJKLMNOPQRSTUVWXYZ
+~Latest: Latest
+~Authors: Authors
+~Series: Series
+~Genres: Genres
+~Folders: Folders
+~Titles: Books
+~Languages: Languages
+
+~Titles - %d: books - %d
+~Authors - %d: authors - %d
+~Series - %d: series - %d
+~Languages - %d: languages - %d
+
+~Author not specified: Unknown author
 ~All authors: All authors
-^Selection from all authors: Selection from all authors
-^Author Total books - %d: Total books - %d
-^Found authors - %d: Found authors - %d
-~Alphabet: Alphabet
-^List books alphabetically: List books alphabetically
-~Author Series: Series 
-^List books series: List books series
-# Genres
-Genres: Genres
-^Genres Found titles - %d: Found titles - %d 
-# Series
-Series: Series
 ~All series: All series
-^Selection from all series: Selection from all series
-^Series Total books - %d: Total books - %d
-^Total series - %d: Total series - %d
-# 
-~All author books: All author books
-~All serie books: All serie books
-Book not found: Book not found
-# Info
-Language: Language 
-Year: Year
-File: File
-Archive: Archive
-Size: File size
-Serie: Serie
+~All books by the author: All books by author
+~All books in the series: All books in series
+
+~Keywords - %d: Keyword matches - %d 
+~Alphabet: Alphabet
+~Keywords: Keywords
+~Nothing found: Nothing found
+~Choose from the found ones: Search results
+~Folder not found: Folder not found
+~Book not found: Book not found
+
+~I'm feeling lucky: I'm feeling lucky
+~Random book: Random book
+
+~Language: Language 
+~Year: Year
+~File: File
+~Archive: Archive
+~Size: Size
+~Serie: Series

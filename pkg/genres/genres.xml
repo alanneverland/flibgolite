@@ -21,6 +21,7 @@
                 <genre-descr lang="uk" title="Бойова Фантастика"/>
                 <genre-alt value="fantasy_fight" format="flibgolite"/>
                 <genre-alt value="fantasy_action" format="flibgolite"/>
+				<genre-alt value="sf_fight" format="flibgolite"/>
             </subgenre>
             <subgenre value="sf_epic">
                 <genre-descr lang="en" title="Epic SF"/>
@@ -92,6 +93,7 @@
                 <genre-alt value="magician_book" format="flibgolite"/>
                 <genre-alt value="dragon_fantasy" format="flibgolite"/>
                 <genre-alt value="fantasy" format="flibgolite"/>
+				<genre-alt value="fantasy_story" format="flibgolite"/>
             </subgenre>
             <subgenre value="sf">
                 <genre-descr lang="en" title="Science Fiction"/>
@@ -145,6 +147,8 @@
                 <genre-descr lang="en" title="Classical Detective"/>
                 <genre-descr lang="ru" title="Классический Детектив"/>
                 <genre-descr lang="uk" title="Класичний Детектив"/>
+				<genre-alt value="crime_fiction" format="flibgolite"/>
+				<genre-alt value="mystery_fiction" format="flibgolite"/>
             </subgenre>
             <subgenre value="det_police">
                 <genre-descr lang="en" title="Police Stories"/>
@@ -249,6 +253,7 @@
                 <genre-alt value="literature_19" format="flibgolite"/>
                 <genre-alt value="literature_18" format="flibgolite"/>
                 <genre-alt value="foreign_prose" format="flibgolite"/>
+				<genre-alt value="short_story" format="flibgolite"/>
             </subgenre>
             <subgenre value="prose_history">
                 <genre-descr lang="en" title="Historical Prose"/>
@@ -326,6 +331,12 @@
         <root-descr lang="ru" genre-title="Любовные романы" detailed="Исторические, современные, остросюжетные"/>
         <root-descr lang="uk" genre-title="Любовні романи" detailed="Історичні, сучасні, гостросюжетні"/>
         <subgenres>
+			<subgenre value="love_sf"> 
+                <genre-descr lang="en" title="Love fantasies, love fiction novels"/>
+                <genre-descr lang="ru" title="Любовное фэнтези, любовно-фантастические романы"/>
+                <genre-descr lang="uk" title="Любовне фентезі, любовно-фантастичні романи"/>
+                <genre-alt value="love_fantasy" format="flibgolite"/>
+            </subgenre>
             <subgenre value="love_contemporary">
                 <genre-descr lang="en" title="Contemporary Romance"/>
                 <genre-descr lang="ru" title="Современные Любовные Романы"/>
@@ -1006,6 +1017,17 @@
         <root-descr lang="ru" genre-title="Юмор" detailed="Проза, стихи, анекдоты"/>
         <root-descr lang="uk" genre-title="Гумор" detailed="Проза, вірші, анекдоти"/>
         <subgenres>
+			<subgenre value="sf_humor">
+                <genre-descr lang="en" title="Humor SF"/>
+                <genre-descr lang="ru" title="Юмористическая Фантастика"/>
+                <genre-descr lang="uk" title="Гумористична Фантастика"/>
+                <genre-alt value="humor_fantasy" format="flibgolite"/>
+            </subgenre>
+			<subgenre value="det_irony">
+                <genre-descr lang="en" title="Ironical Detective"/>
+                <genre-descr lang="ru" title="Иронический Детектив"/>
+                <genre-descr lang="uk" title="Іронічний детектив"/>
+            </subgenre>
             <subgenre value="humor_anecdote">
                 <genre-descr lang="en" title="Anecdote"/>
                 <genre-descr lang="ru" title="Анекдоты"/>

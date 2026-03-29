@@ -14,7 +14,7 @@ type PDF struct {
 }
 
 func NewPDF(path string) (p *PDF, err error) {
-	// Защита от паники внутри бинарного парсера
+
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("pdf-xtract panic on file %s: %v", path, r)
@@ -33,7 +33,6 @@ func NewPDF(path string) (p *PDF, err error) {
 		return nil, err
 	}
 
-	// Создаем ридер через новый API
 	r, err := pdf.NewReader(f, fi.Size())
 	if err != nil {
 		return nil, err
@@ -44,9 +43,7 @@ func NewPDF(path string) (p *PDF, err error) {
 		Info:     make(map[string]string),
 	}
 
-	// Извлекаем метаданные из словаря Info
 	infoDict := r.Trailer().Key("Info")
-	// В pdf-xtract проверка на наличие ключа делается через .IsNull()
 	if !infoDict.IsNull() {
 		fields := []string{"Title", "Author", "Subject", "CreationDate", "Keywords"}
 		for _, field := range fields {
@@ -55,6 +52,21 @@ func NewPDF(path string) (p *PDF, err error) {
 			}
 		}
 	}
+
+	rootDict := r.Trailer().Key("Root")
+	if !rootDict.IsNull() {
+		langField := rootDict.Key("Lang")
+		if !langField.IsNull() {
+			p.Info["Lang"] = langField.String()
+		}
+	}
+	
+	firstPage := r.Page(1)
+    if !firstPage.V.IsNull() {
+        if text, err := firstPage.GetPlainText(nil); err == nil {
+            p.Info["FirstPageText"] = text
+        }
+    }
 
 	return p, nil
 }

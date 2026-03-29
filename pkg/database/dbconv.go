@@ -23,15 +23,19 @@ func (db *DB) BookInfo(id int64) (*model.Book, error) {
 
 func (db *DB) BookLanguage(id int64) (*model.Language, error) {
 	l := &model.Language{}
-	q := `SELECT l.code, l.name FROM languages as l, books as b WHERE b.language_id=l.ID AND b.id=?`
-	err := db.QueryRow(q, id).Scan(&l.Code, &l.Name)
+	q := `SELECT language FROM books WHERE id=?`
+	err := db.QueryRow(q, id).Scan(&l.Code)
+	
 	if err != nil {
 		if err == sql.ErrNoRows {
-			l.Code = "en"
-			return l, fmt.Errorf("book %d has no language set", id)
+			// Если запрос вернул 0 строк, значит книги с таким ID не существует
+			l.Code = "und" // Ставим стандартный код для неопределенного языка
+			return l, fmt.Errorf("book %d not found", id)
 		}
-		return l, fmt.Errorf("book %d has wrong language set: %w", id, err)
+		// Если произошла какая-то другая системная ошибка БД
+		return l, fmt.Errorf("database error while getting language for book %d: %w", id, err)
 	}
+	
 	return l, nil
 }
 

@@ -1,17 +1,17 @@
 package database
 
 import (
-	"bufio"
+	//"bufio"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
+	//"strings"
 
-	// "sync"
+	"sync"
 
 	"github.com/jmoiron/sqlx"
-
+	//"github.com/vinser/flibgolite/pkg/genres"
 	_ "embed"
 
 	_ "modernc.org/sqlite"
@@ -25,12 +25,26 @@ var SQLITE_DB_INIT string
 //go:embed sqlite_db_drop.sql
 var SQLITE_DB_DROP string
 
+type DBStats struct {
+	TotalBooks     int64
+	TotalAuthors   int64
+	TotalSeries    int64
+	TotalGenres    int64
+	TotalLanguages int64
+}
+
 type DB struct {
 	*sqlx.DB
+	mu             sync.RWMutex	
+	lastCheckMinute 	int64
+	lastCheckUpdate 	int64
+	ScanID int64
+	FolderCache map[string]int64
 }
 
 // ==================================
 func NewDB(dsn string) *DB {
+	
 	err := os.MkdirAll(filepath.Dir(dsn), 0775)
 	if err != nil && !os.IsExist(err) {
 		log.Fatal(err)
@@ -46,6 +60,7 @@ func NewDB(dsn string) *DB {
 
 	DB := &DB{
 		DB: db,
+		FolderCache: make(map[string]int64),
 	}
 
 	return DB
@@ -76,7 +91,7 @@ func (db *DB) IsReady() bool {
 }
 
 func (db *DB) execFile(sql string) {
-	scanner := bufio.NewScanner(strings.NewReader(sql))
+	/*scanner := bufio.NewScanner(strings.NewReader(sql))
 	scanner.Split(bufio.ScanLines)
 	q := ""
 
@@ -89,6 +104,10 @@ func (db *DB) execFile(sql string) {
 				log.Fatal(err)
 			}
 		}
+	}*/
+	_, err := db.Exec(sql)
+	if err != nil {
+		log.Fatalf("Failed to execute SQL script: %v\nScript content excerpt: %.100s...", err, sql)
 	}
 }
 
@@ -96,12 +115,14 @@ func (db *DB) execFile(sql string) {
 type TX struct {
 	*sqlx.Tx
 	Stmt map[string]*sqlx.Stmt
+	parentDB *DB
 }
 
 func (db *DB) TxBegin() *TX {
 	TX := &TX{
 		Tx:   db.DB.MustBegin(),
 		Stmt: map[string]*sqlx.Stmt{},
+		parentDB: db,
 	}
 	TX.PrepareStatements()
 	return TX
